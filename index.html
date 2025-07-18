@@ -406,6 +406,24 @@
                 setActiveSection(sectionName);
             };
 
+            // Save resume data to Firestore
+            const saveResume = async () => {
+                if (!db || !userId) {
+                    showMessage('Please log in to save your resume.', 'error');
+                    return;
+                }
+                try {
+                    const { doc, collection, setDoc } = window.firebaseApp;
+                    // Store in private user data path
+                    const resumeDocRef = doc(collection(db, `artifacts/${appId}/users/${userId}/resumes`), 'myResume');
+                    await setDoc(resumeDocRef, resumeData);
+                    showMessage('Resume saved successfully to Google Cloud!', 'success');
+                } catch (error) {
+                    console.error("Error saving resume:", error);
+                    showMessage(`Error saving resume: ${error.message}`, 'error');
+                }
+            };
+
             // LLM Integration: Generate Professional Summary
             const generateSummary = async () => {
                 setIsGeneratingSummary(true);
