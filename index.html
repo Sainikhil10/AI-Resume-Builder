@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Builder</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Lighter background */
+            background-image: url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%239C92AC" fill-opacity="0.1"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm12 12v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm-36 0v-4h-2v4H0v2h2v4h2v-4h4v-2h-4zm36-36v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm-36 0v-4h-2v4H0v2h2v4h2v-4h4v-2h-4zm0 24v-4h-2v4H0v2h2v4h2v-4h4v-2h-4zm24 0v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-24v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0; /* Tailwind gray-200 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8; /* Tailwind gray-400 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; /* Tailwind gray-600 */
+        }
+    </style>
+    <!-- React and ReactDOM CDNs (UMD builds for global access) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- html2canvas CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- jsPDF CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Babel Standalone for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Expose Firebase functions globally for the Babel-transformed React script
+        window.firebaseApp = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, getFirestore, doc, setDoc, onSnapshot, collection };
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Changed type to text/babel for JSX processing -->
+    <script type="text/babel">
+        // React and ReactDOM are now loaded globally via script tags,
+        // so we can access them directly from the global scope.
+        const { useState, useRef, useEffect } = React;
+        const { createRoot } = ReactDOM;
+
+        // Global variables for Firebase config (provided by Canvas environment)
+        // These are expected to be defined by the Canvas environment or will fallback
+        const appId = "1:406715554883:web:e47c480d772e5c7c1448f6"; // Using the appId from the provided config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWjBgBnnT7O0xGA08ah4RM2gf-0k1EE9k",
+            authDomain: "ai-resume-builder-e047f.firebaseapp.com",
+            projectId: "ai-resume-builder-e047f",
+            storageBucket: "ai-resume-builder-e047f.firebasestorage.app",
+            messagingSenderId: "406715554883",
+            appId: "1:406715554883:web:e47c480d772e5c7c1448f6",
+            measurementId: "G-LKY5LYCY3E"
+        };
+        const initialAuthToken = null; // Not used for email/password auth
+
+        // Main App component (your React code goes here)
+        const App = () => {
+            // State to store all resume data
+            const [resumeData, setResumeData] = useState({
+                personal: {
+                    name: '',
+                    email: '',
+                    phone: '',
+                    linkedin: '',
+                    github: '',
+                    portfolio: '',
+                    summary: ''
+                },
+                education: [],
+                experience: [],
+                projects: [],
+                skills: [],
+                certifications: [],
+                template: 'modern' // Default template
+            });
+
+            // Firebase state
+            const [db, setDb] = useState(null);
+            const [auth, setAuth] = useState(null);
+            const [userId, setUserId] = useState(null);
+            const [isAuthReady, setIsAuthReady] = useState(false);
+            const [authError, setAuthError] = useState(''); // For authentication errors
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [isLoginMode, setIsLoginMode] = useState(true); // Toggle between login and signup
+
+            // State for managing form sections visibility (optional, for better UX)
+            const [activeSection, setActiveSection] = useState('personal');
+            const [message, setMessage] = useState({ text: '', type: '' }); // For custom message box
+            const [isGeneratingSummary, setIsGeneratingSummary] = useState(false); // Loading state for LLM
+            const [isDownloading, setIsDownloading] = useState(false); // Loading state for download
+
+            // Refs for scrolling to sections and for the resume preview area
+            const personalRef = useRef(null);
+            const educationRef = useRef(null);
+            const experienceRef = useRef(null);
+            const projectsRef = useRef(null);
+            const skillsRef = useRef(null);
+            const certificationsRef = useRef(null);
+            const resumePreviewRef = useRef(null); // Ref for the resume preview div
+
+            // Initialize Firebase and set up auth listener
+            useEffect(() => {
+                const initFirebase = async () => {
+                    // Check if Firebase config is valid before initializing
+                    if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
+                        showMessage('Firebase configuration is incomplete. Please update firebaseConfig with your project details.', 'error');
+                        setIsAuthReady(true); // Mark auth as ready but not functional
+                        return;
+                    }
+
+                    try {
+                        const { initializeApp, getAuth, onAuthStateChanged, getFirestore } = window.firebaseApp;
+
+                        const app = initializeApp(firebaseConfig);
+                        const firestore = getFirestore(app);
+                        const firebaseAuth = getAuth(app);
+
+                        setDb(firestore);
+                        setAuth(firebaseAuth);
+
+                        const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+                            if (user) {
+                                setUserId(user.uid);
+                                setIsAuthReady(true);
+                                setAuthError(''); // Clear any previous auth errors
+                                console.log("User authenticated:", user.uid);
+                            } else {
+                                setUserId(null);
+                                setIsAuthReady(true); // Auth system is ready, but no user logged in
+                                console.log("No user authenticated.");
+                            }
+                        });
+
+                        return () => unsubscribe();
+                    } catch (error) {
+                        console.error("Firebase initialization failed:", error);
+                        showMessage(`Firebase initialization failed: ${error.message}. Please check your Firebase config.`, 'error');
+                        setIsAuthReady(true); // Ensure auth is marked ready even on failure to avoid infinite loading
+                    }
+                };
+
+                if (window.firebaseApp) {
+                    initFirebase();
+                } else {
+                    const checkFirebaseInterval = setInterval(() => {
+                        if (window.firebaseApp) {
+                            clearInterval(checkFirebaseInterval);
+                            initFirebase();
+                        }
+                    }, 100);
+                }
+            }, []);
+
+            // Load resume data when auth is ready and userId is available
+            useEffect(() => {
+                if (db && userId && isAuthReady) {
+                    const { doc, collection, onSnapshot } = window.firebaseApp;
+                    // Changed path to private user data
+                    const resumeDocRef = doc(collection(db, `artifacts/${appId}/users/${userId}/resumes`), 'myResume');
+
+                    const unsubscribe = onSnapshot(resumeDocRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            setResumeData(docSnap.data());
+                            showMessage('Resume loaded successfully from your account!', 'success');
+                        } else {
+                            console.log("No existing resume found for this user. Starting fresh.");
+                            showMessage('No saved resume found for your account. Start building!', 'info');
+                        }
+                    }, (error) => {
+                        console.error("Error fetching resume:", error);
+                        showMessage(`Error loading resume: ${error.message}`, 'error');
+                    });
+
+                    return () => unsubscribe(); // Cleanup snapshot listener
+                } else if (isAuthReady && !userId) {
+                    // If auth is ready but no user is logged in, clear resume data
+                    setResumeData({
+                        personal: { name: '', email: '', phone: '', linkedin: '', github: '', portfolio: '', summary: '' },
+                        education: [], experience: [], projects: [], skills: [], certifications: [], template: 'modern'
+                    });
+                }
+            }, [db, userId, isAuthReady]); // Depend on db, userId, and isAuthReady
+
+            // Custom Message Box
+            const showMessage = (text, type) => {
+                setMessage({ text, type });
+                setTimeout(() => setMessage({ text: '', type: '' }), 5000); // Hide after 5 seconds
+            };
+
+            // Authentication Handlers
+            const handleAuthSubmit = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                if (!auth) {
+                    showMessage('Firebase Auth not initialized. Please wait or check Firebase config.', 'error');
+                    return;
+                }
+
+                try {
+                    const { createUserWithEmailAndPassword, signInWithEmailAndPassword } = window.firebaseApp;
+                    if (isLoginMode) {
+                        await signInWithEmailAndPassword(auth, email, password);
+                        showMessage('Logged in successfully!', 'success');
+                    } else {
+                        await createUserWithEmailAndPassword(auth, email, password);
+                        showMessage('Account created and logged in!', 'success');
+                    }
+                } catch (error) {
+                    console.error("Authentication error:", error);
+                    setAuthError(error.message);
+                    showMessage(`Authentication failed: ${error.message}`, 'error');
+                }
+            };
+
+            const handleLogout = async () => {
+                if (!auth) return;
+                try {
+                    await window.firebaseApp.signOut(auth);
+                    showMessage('Logged out successfully.', 'info');
+                    // Optionally clear resume data on logout, or keep it for next login
+                    setResumeData({
+                        personal: { name: '', email: '', phone: '', linkedin: '', github: '', portfolio: '', summary: '' },
+                        education: [], experience: [], projects: [], skills: [], certifications: [], template: 'modern'
+                    });
+                } catch (error) {
+                    console.error("Logout error:", error);
+                    showMessage(`Logout failed: ${error.message}`, 'error');
+                }
+            };
+
+            // Handle input changes for personal details
+            const handlePersonalChange = (e) => {
+                const { name, value } = e.target;
+                setResumeData(prevData => ({
+                    ...prevData,
+                    personal: {
+                        ...prevData.personal,
+                        [name]: value
+                    }
+                }));
+            };
+
+            // Handle adding a new education entry
+            const addEducation = () => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    education: [...prevData.education, { degree: '', institution: '', year: '', coursework: '' }]
+                }));
+            };
+
+            // Handle education field changes
+            const handleEducationChange = (index, e) => {
+                const { name, value } = e.target;
+                const updatedEducation = resumeData.education.map((edu, i) =>
+                    i === index ? { ...edu, [name]: value } : edu
+                );
+                setResumeData(prevData => ({ ...prevData, education: updatedEducation }));
+            };
+
+            // Handle removing an education entry
+            const removeEducation = (index) => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    education: prevData.education.filter((_, i) => i !== index)
+                }));
+            };
+
+            // Handle adding a new experience entry
+            const addExperience = () => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    experience: [...prevData.experience, { title: '', company: '', duration: '', description: '' }]
+                }));
+            };
+
+            // Handle experience field changes
+            const handleExperienceChange = (index, e) => {
+                const { name, value } = e.target;
+                const updatedExperience = resumeData.experience.map((exp, i) =>
+                    i === index ? { ...exp, [name]: value } : exp
+                );
+                setResumeData(prevData => ({ ...prevData, experience: updatedExperience }));
+            };
+
+            // Handle removing an experience entry
+            const removeExperience = (index) => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    experience: prevData.experience.filter((_, i) => i !== index)
+                }));
+            };
+
+            // Handle adding a new project entry
+            const addProject = () => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    projects: [...prevData.projects, { name: '', description: '', url: '' }]
+                }));
+            };
+
+            // Handle project field changes
+            const handleProjectChange = (index, e) => {
+                const { name, value } = e.target;
+                const updatedProjects = resumeData.projects.map((proj, i) =>
+                    i === index ? { ...proj, [name]: value } : proj
+                );
+                setResumeData(prevData => ({ ...prevData, projects: updatedProjects }));
+            };
+
+            // Handle removing a project entry
+            const removeProject = (index) => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    projects: prevData.projects.filter((_, i) => i !== index)
+                }));
+            };
+
+            // Handle adding a new skill
+            const addSkill = () => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    skills: [...prevData.skills, { name: '', level: '' }]
+                }));
+            };
+
+            // Handle skill field changes
+            const handleSkillChange = (index, e) => {
+                const { name, value } = e.target;
+                const updatedSkills = resumeData.skills.map((skill, i) =>
+                    i === index ? { ...skill, [name]: value } : skill
+                );
+                setResumeData(prevData => ({ ...prevData, skills: updatedSkills }));
+            };
+
+            // Handle removing a skill
+            const removeSkill = (index) => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    skills: prevData.skills.filter((_, i) => i !== index)
+                }));
+            };
+
+            // Handle adding a new certification entry
+            const addCertification = () => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    certifications: [...prevData.certifications, { name: '', issuingBody: '', date: '' }]
+                }));
+            };
+
+            // Handle certification field changes
+            const handleCertificationChange = (index, e) => {
+                const { name, value } = e.target;
+                const updatedCertifications = resumeData.certifications.map((cert, i) =>
+                    i === index ? { ...cert, [name]: value } : cert
+                );
+                setResumeData(prevData => ({ ...prevData, certifications: updatedCertifications }));
+            };
+
+            // Handle removing a certification entry
+            const removeCertification = (index) => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    certifications: prevData.certifications.filter((_, i) => i !== index)
+                }));
+            };
+
+            // Handle template selection
+            const handleTemplateChange = (e) => {
+                setResumeData(prevData => ({
+                    ...prevData,
+                    template: e.target.value
+                }));
+            };
+
+            // Function to scroll to a specific section
+            const scrollToSection = (ref, sectionName) => {
+                ref.current?.scrollIntoView({ behavior: 'smooth' });
+                setActiveSection(sectionName);
+            };
+
+            // LLM Integration: Generate Professional Summary
+            const generateSummary = async () => {
+                setIsGeneratingSummary(true);
+                showMessage('Generating summary...', 'info');
+
+                const { personal, experience, education, skills } = resumeData;
+
+                // Basic validation: Check if there's enough data to form a meaningful prompt
+                if (!personal.name && experience.length === 0 && education.length === 0 && skills.length === 0) {
+                    showMessage('Please enter some experience, education, or skills to generate a summary.', 'error');
+                    setIsGeneratingSummary(false);
+                    return;
+                }
+
+                // Construct a detailed prompt for the LLM
+                let prompt = `Generate a concise (3-5 sentences), impactful professional summary for a resume. Focus on key achievements, relevant skills, and career aspirations. Avoid using "I" or "my".
+
+Candidate Information:
+Name: ${personal.name || 'A professional'}
+
+Experience:
+${experience.map(exp => `- ${exp.title} at ${exp.company} (${exp.duration}): ${exp.description}`).join('\n')}
+
+Education:
+${education.map(edu => `- ${edu.degree} from ${edu.institution} (${edu.year})`).join('\n')}
+
+Skills:
+${skills.map(skill => `${skill.name} (${skill.level})`).join(', ')}
+
+Please provide only the summary text.`;
+
+                console.log("Prompt sent to LLM:", prompt); // Log the prompt for debugging
+
+                try {
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const apiKey = "AIzaSyANWcDdvxFgYUJDKKrI0KC5JZPcmrmDOo4"; // Your provided API key
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.error("API response error:", response.status, errorData); // Log API error response
+                        throw new Error(errorData.error?.message || `API request failed with status ${response.status}.`);
+                    }
+
+                    const result = await response.json();
+                    console.log("LLM raw response:", result); // Log raw LLM response
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const generatedText = result.candidates[0].content.parts[0].text;
+                        setResumeData(prevData => ({
+                            ...prevData,
+                            personal: {
+                                ...prevData.personal,
+                                summary: generatedText.trim()
+                            }
+                        }));
+                        showMessage('Summary generated successfully!', 'success');
+                    } else {
+                        // Handle cases where response is OK but content is empty or malformed
+                        console.error("LLM response did not contain expected content structure:", result);
+                        showMessage('AI could not generate a summary. Please try adding more details or try again.', 'error');
+                    }
+                } catch (error) {
+                    console.error("Error generating summary:", error);
+                    showMessage(`Error generating summary: ${error.message}. Check console for details.`, 'error');
+                } finally {
+                    setIsGeneratingSummary(false);
+                }
+            };
+
+            // Function to download the resume as PDF
+            const downloadResume = async () => {
+                setIsDownloading(true);
+                showMessage('Generating PDF...', 'info');
+
+                // Ensure html2canvas and jsPDF are loaded globally
+                // In this Canvas environment, they are expected to be available via script tags
+                if (typeof window.html2canvas === 'undefined' || typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+                    showMessage('PDF generation libraries not fully loaded. Please ensure internet connectivity and try again.', 'error');
+                    setIsDownloading(false);
+                    return;
+                }
+
+                const input = resumePreviewRef.current;
+                if (!input) {
+                    showMessage('Resume preview element not found.', 'error');
+                    setIsDownloading(false);
+                    return;
+                }
+
+                try {
+                    // Use html2canvas to capture the content of the resume preview
+                    const canvas = await window.html2canvas(input, {
+                        scale: 2, // Increase scale for better resolution
+                        useCORS: true, // Enable cross-origin images if any (e.g., portfolio images)
+                        scrollY: -window.scrollY, // Correct scrolling issue
+                        windowWidth: document.documentElement.offsetWidth,
+                        windowHeight: document.documentElement.offsetHeight
+                    });
+
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4'); // 'p' for portrait, 'mm' for millimeters, 'a4' size
+
+                    const imgWidth = 210; // A4 width in mm
+                    const pageHeight = 297; // A4 height in mm
+                    const imgHeight = canvas.height * imgWidth / canvas.width;
+                    let heightLeft = imgHeight;
+
+                    let position = 0;
+
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        pdf.addPage();
+                        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pageHeight;
+                    }
+
+                    // Generate a filename
+                    const filename = `${resumeData.personal.name || 'Resume'}_${resumeData.template}_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`;
+                    pdf.save(filename);
+                    showMessage('Resume downloaded successfully!', 'success');
+
+                } catch (error) {
+                    console.error("Error generating PDF:", error);
+                    showMessage(`Error downloading resume: ${error.message}`, 'error');
+                } finally {
+                    setIsDownloading(false);
+                }
+            };
+
+            // Resume Preview Component
+            const ResumePreview = ({ data, template }) => {
+                // Centralized style definitions for all templates
+                const templateStyles = {
+                    'modern': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg flex flex-col md:flex-row',
+                        sidebar: 'md:w-1/3 bg-gray-100 p-4 rounded-l-lg',
+                        mainContent: 'md:w-2/3 p-4',
+                        name: 'text-blue-800 text-3xl font-bold mb-2',
+                        contact: 'text-gray-700 text-sm mb-1',
+                        sectionHeading: 'text-blue-600 text-xl font-bold mb-2 border-b border-blue-200 pb-1',
+                        subHeading: 'text-lg font-semibold mb-1',
+                        text: 'text-gray-700 text-sm mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-sm'
+                    },
+                    'classic': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-gray-800 text-4xl font-bold mb-3 text-center',
+                        contact: 'text-gray-700 text-base mb-1 text-center',
+                        sectionHeading: 'text-gray-800 text-2xl font-bold mb-3 border-b-2 border-gray-300 pb-1',
+                        subHeading: 'text-xl font-semibold mb-2',
+                        text: 'text-gray-700 text-base mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-base'
+                    },
+                    'ats-friendly': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg flex flex-col',
+                        sidebar: '',
+                        mainContent: 'p-4 w-full',
+                        name: 'text-gray-800 text-3xl font-bold mb-1 text-center',
+                        contact: 'text-gray-600 text-sm text-center',
+                        sectionHeading: 'text-gray-800 text-xl font-bold mb-2 uppercase border-b border-gray-300 pb-1 mt-4',
+                        subHeading: 'text-lg font-semibold mb-1',
+                        text: 'text-gray-700 text-sm mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-sm'
+                    },
+                    'minimalist': {
+                        container: 'bg-white p-8 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-gray-900 text-3xl font-light mb-2 text-center',
+                        contact: 'text-gray-600 text-sm mb-1 text-center',
+                        sectionHeading: 'text-gray-700 text-xl font-semibold mb-2 border-b border-gray-300 pb-1 mt-4',
+                        subHeading: 'text-lg font-medium mb-1',
+                        text: 'text-gray-600 text-sm mb-1',
+                        list: 'list-none text-gray-600 text-sm' // No bullets for minimalist lists
+                    },
+                    'professional-blue': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-blue-700 text-4xl font-bold mb-3 text-center',
+                        contact: 'text-gray-700 text-base mb-1 text-center',
+                        sectionHeading: 'text-blue-600 text-2xl font-bold mb-3 border-b-2 border-blue-300 pb-1',
+                        subHeading: 'text-xl font-semibold mb-2',
+                        text: 'text-gray-700 text-base mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-base'
+                    },
+                    'modern-green': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-green-700 text-3xl font-bold mb-2',
+                        contact: 'text-gray-700 text-sm mb-1',
+                        sectionHeading: 'text-green-600 text-xl font-bold mb-2 border-b border-green-200 pb-1',
+                        subHeading: 'text-lg font-semibold mb-1',
+                        text: 'text-gray-700 text-sm mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-sm'
+                    },
+                    'elegant-grey': {
+                        container: 'bg-white p-8 shadow-xl rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-gray-800 text-4xl font-serif mb-3 text-center',
+                        contact: 'text-gray-600 text-base mb-1 text-center',
+                        sectionHeading: 'text-gray-700 text-2xl font-serif font-bold mb-3 border-b border-gray-400 pb-1',
+                        subHeading: 'text-xl font-serif font-semibold mb-2',
+                        text: 'text-gray-700 text-base mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-base'
+                    },
+                    'tech-focused': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-indigo-700 text-3xl font-extrabold mb-2',
+                        contact: 'text-gray-700 text-sm mb-1',
+                        sectionHeading: 'text-indigo-600 text-xl font-bold mb-2 border-b-2 border-indigo-300 pb-1',
+                        subHeading: 'text-lg font-semibold mb-1',
+                        text: 'text-gray-700 text-sm mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-sm'
+                    },
+                    'bold-headings': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-gray-900 text-4xl font-black mb-3 text-center',
+                        contact: 'text-gray-700 text-base mb-1 text-center',
+                        sectionHeading: 'text-gray-800 text-2xl font-extrabold mb-3 border-b-4 border-gray-400 pb-1',
+                        subHeading: 'text-xl font-bold mb-2',
+                        text: 'text-gray-700 text-base mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-base'
+                    },
+                    'clean-lines': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-gray-800 text-3xl font-semibold mb-2 text-center',
+                        contact: 'text-gray-600 text-sm mb-1 text-center',
+                        sectionHeading: 'text-gray-700 text-xl font-semibold mb-2 border-b border-gray-200 pb-1',
+                        subHeading: 'text-lg font-medium mb-1',
+                        text: 'text-gray-700 text-sm mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-sm'
+                    },
+                    'corporate': {
+                        container: 'bg-white p-8 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-gray-900 text-4xl font-bold mb-3 text-left',
+                        contact: 'text-gray-700 text-base mb-1 text-left',
+                        sectionHeading: 'text-gray-800 text-2xl font-bold mb-3 border-b-2 border-gray-300 pb-1',
+                        subHeading: 'text-xl font-semibold mb-2',
+                        text: 'text-gray-700 text-base mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-base'
+                    },
+                    'modern-red': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-red-700 text-3xl font-bold mb-2',
+                        contact: 'text-gray-700 text-sm mb-1',
+                        sectionHeading: 'text-red-600 text-xl font-bold mb-2 border-b border-red-200 pb-1',
+                        subHeading: 'text-lg font-semibold mb-1',
+                        text: 'text-gray-700 text-sm mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-sm'
+                    },
+                    'gradient-accent': {
+                        container: 'bg-white p-6 shadow-lg rounded-lg',
+                        sidebar: '',
+                        mainContent: 'p-4',
+                        name: 'text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 text-4xl font-extrabold mb-3 text-center',
+                        contact: 'text-gray-700 text-base mb-1 text-center',
+                        sectionHeading: 'text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 text-2xl font-bold mb-3 border-b-2 border-blue-300 pb-1',
+                        subHeading: 'text-xl font-semibold mb-2',
+                        text: 'text-gray-700 text-base mb-1',
+                        list: 'list-disc list-inside text-gray-700 text-base'
+                    },
+                };
+
+                const styles = templateStyles[template] || templateStyles['modern']; // Fallback to modern
+
+                // Generic rendering function for sections to reduce repetition
+                const renderSection = (title, items, renderItem) => {
+                    if (items.length === 0) return null;
+                    return (
+                        <div className="mb-6">
+                            <h3 className={styles.sectionHeading}>{title}</h3>
+                            {items.map(renderItem)}
+                        </div>
+                    );
+                };
+
+                // Render logic for ATS-friendly template (single column)
+                if (template === 'ats-friendly') {
+                    return (
+                        <div className={`overflow-auto h-full ${styles.container}`}>
+                            {/* Personal Details */}
+                            <div className="text-center mb-6">
+                                <h2 className={styles.name}>{data.personal.name || 'Your Name'}</h2>
+                                <p className={styles.contact}>
+                                    {data.personal.email} | {data.personal.phone}
+                                    {data.personal.linkedin && ` | `}
+                                    {data.personal.linkedin && <a href={data.personal.linkedin} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">LinkedIn</a>}
+                                    {data.personal.github && ` | `}
+                                    {data.personal.github && <a href={data.personal.github} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">GitHub</a>}
+                                    {data.personal.portfolio && ` | `}
+                                    {data.personal.portfolio && <a href={data.personal.portfolio} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Portfolio</a>}
+                                </p>
+                            </div>
+
+                            {data.personal.summary && (
+                                <div className="mb-6">
+                                    <h3 className={styles.sectionHeading}>Summary</h3>
+                                    <p className={styles.text}>{data.personal.summary}</p>
+                                </div>
+                            )}
+
+                            {renderSection('Experience', data.experience, (exp, index) => (
+                                <div key={index} className="mb-4">
+                                    <h4 className={styles.subHeading}>{exp.title} - {exp.company}</h4>
+                                    <p className={styles.text}>{exp.duration}</p>
+                                    <ul className={styles.list}>
+                                        {exp.description.split('\n').map((line, i) => line.trim() && <li key={i}>{line.trim()}</li>)}
+                                    </ul>
+                                </div>
+                            ))}
+
+                            {renderSection('Projects', data.projects, (proj, index) => (
+                                <div key={index} className="mb-4">
+                                    <h4 className={styles.subHeading}>{proj.name}</h4>
+                                    {proj.url && <p className={styles.text}><a href={proj.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Project Link</a></p>}
+                                    <ul className={styles.list}>
+                                        {proj.description.split('\n').map((line, i) => line.trim() && <li key={i}>{line.trim()}</li>)}
+                                    </ul>
+                                </div>
+                            ))}
+
+                            {renderSection('Education', data.education, (edu, index) => (
+                                <div key={index} className="mb-4">
+                                    <h4 className={styles.subHeading}>{edu.degree}</h4>
+                                    <p className={styles.text}>{edu.institution}, {edu.year}</p>
+                                    {edu.coursework && (
+                                        <>
+                                            <p className="text-gray-700 text-sm mt-1 font-semibold">Relevant Coursework:</p>
+                                            <ul className="list-disc list-inside text-gray-700 text-sm ml-4">
+                                                {edu.coursework.split('\n').map((item, i) => item.trim() && <li key={i}>{item.trim()}</li>)}
+                                            </ul>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+
+                            {renderSection('Skills', data.skills, (skill, index) => (
+                                <ul key={index} className={styles.list}>
+                                    <li>{skill.name} ({skill.level})</li>
+                                </ul>
+                            ))}
+
+                            {renderSection('Certifications', data.certifications, (cert, index) => (
+                                <div key={index} className="mb-4">
+                                    <h4 className={styles.subHeading}>{cert.name}</h4>
+                                    <p className={styles.text}>{cert.issuingBody}, {cert.date}</p>
+                                </div>
+                            ))}
+                        </div>
+                    );
+                }
+
+                // Default rendering for modern/classic and new templates (two-column or single column based on styles)
+                return (
+                    <div className={`overflow-auto h-full ${styles.container}`}>
+                        {/* Sidebar for modern template, empty for others */}
+                        {template === 'modern' && (
+                            <div className={styles.sidebar}>
+                                <h2 className={styles.name}>{data.personal.name || 'Your Name'}</h2>
+                                <p className={styles.contact}>Email: {data.personal.email}</p>
+                                <p className={styles.contact}>Phone: {data.personal.phone}</p>
+                                {data.personal.linkedin && <p className={styles.contact}>LinkedIn: <a href={data.personal.linkedin} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">LinkedIn</a></p>}
+                                {data.personal.github && <p className={styles.contact}>GitHub: <a href={data.personal.github} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">GitHub</a></p>}
+                                {data.personal.portfolio && <p className={styles.contact}>Portfolio: <a href={data.personal.portfolio} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Portfolio</a></p>}
+
+                                {renderSection('Skills', data.skills, (skill, index) => (
+                                    <ul key={index} className={styles.list}>
+                                        <li>{skill.name} ({skill.level})</li>
+                                    </ul>
+                                ))}
+
+                                {renderSection('Certifications', data.certifications, (cert, index) => (
+                                    <div key={index} className="mb-2">
+                                        <h4 className={styles.subHeading}>{cert.name}</h4>
+                                        <p className={styles.text}>{cert.issuingBody}, {cert.date}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Main Content Area */}
+                        <div className={styles.mainContent}>
+                            {/* Personal details for non-modern templates (or if modern and no sidebar) */}
+                            {template !== 'modern' && (
+                                <div className="mb-6">
+                                    <h2 className={styles.name}>{data.personal.name || 'Your Name'}</h2>
+                                    <p className={styles.contact}>
+                                        {data.personal.email} | {data.personal.phone}
+                                        {data.personal.linkedin && ` | `}
+                                        {data.personal.linkedin && <a href={data.personal.linkedin} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">LinkedIn</a>}
+                                        {data.personal.github && ` | `}
+                                        {data.personal.github && <a href={data.personal.github} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">GitHub</a>}
+                                        {data.personal.portfolio && ` | `}
+                                        {data.personal.portfolio && <a href={data.personal.portfolio} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Portfolio</a>}
+                                    </p>
+                                </div>
+                            )}
+
+                            {data.personal.summary && (
+                                <div className="mb-6">
+                                    <h3 className={styles.sectionHeading}>Summary</h3>
+                                    <p className={styles.text}>{data.personal.summary}</p>
+                                </div>
+                            )}
+
+                            {renderSection('Experience', data.experience, (exp, index) => (
+                                <div key={index} className="mb-4">
+                                    <h4 className={styles.subHeading}>{exp.title} at {exp.company}</h4>
+                                    <p className={styles.text}>{exp.duration}</p>
+                                    <p className={styles.text}>{exp.description}</p>
+                                </div>
+                            ))}
+
+                            {renderSection('Projects', data.projects, (proj, index) => (
+                                <div key={index} className="mb-4">
+                                    <h4 className={styles.subHeading}>{proj.name}</h4>
+                                    {proj.url && <p className={styles.text}>Project URL: <a href={proj.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Project Link</a></p>}
+                                    <p className={styles.text}>{proj.description}</p>
+                                </div>
+                            ))}
+
+                            {renderSection('Education', data.education, (edu, index) => (
+                                <div key={index} className="mb-4">
+                                    <h4 className={styles.subHeading}>{edu.degree}</h4>
+                                    <p className={styles.text}>{edu.institution}, {edu.year}</p>
+                                    {edu.coursework && (
+                                        <>
+                                            <p className="text-gray-700 text-sm mt-1 font-semibold">Relevant Coursework:</p>
+                                            <ul className="list-disc list-inside text-gray-700 text-sm ml-4">
+                                                {edu.coursework.split('\n').map((item, i) => item.trim() && <li key={i}>{item.trim()}</li>)}
+                                            </ul>
+                                        </>
+                                            )}
+                                </div>
+                            ))}
+
+                            {/* Skills and Certifications for non-modern templates (already in sidebar for modern) */}
+                            {template !== 'modern' && (
+                                <>
+                                    {renderSection('Skills', data.skills, (skill, index) => (
+                                        <ul key={index} className={styles.list}>
+                                            <li>{skill.name} ({skill.level})</li>
+                                        </ul>
+                                    ))}
+
+                                    {renderSection('Certifications', data.certifications, (cert, index) => (
+                                        <div key={index} className="mb-2">
+                                            <h4 className={styles.subHeading}>{cert.name}</h4>
+                                            <p className={styles.text}>{cert.issuingBody}, {cert.date}</p>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+
+            return (
+                <div className="min-h-screen bg-gray-100 font-inter p-4 flex flex-col lg:flex-row gap-6">
+                    {/* Left Panel: Input Form */}
+                    <div className="lg:w-1/2 bg-white p-6 rounded-lg shadow-lg overflow-y-auto max-h-[90vh]">
+                        <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Resume Builder</h1>
+
+                        {/* Authentication UI */}
+                        {!userId && isAuthReady && (
+                            <div className="mb-6 p-4 bg-gray-50 rounded-lg shadow-inner">
+                                <form onSubmit={handleAuthSubmit} className="space-y-4">
+                                    <h2 className="text-2xl font-semibold text-gray-700 text-center mb-4">
+                                        {isLoginMode ? 'Login' : 'Sign Up'}
+                                    </h2>
+                                    {authError && <p className="text-red-600 text-center text-sm">{authError}</p>}
+                                    <div>
+                                        <label htmlFor="email-auth" className="block text-sm font-medium text-gray-700">Email</label>
+                                        <input
+                                            type="email"
+                                            id="email-auth"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="password-auth" className="block text-sm font-medium text-gray-700">Password</label>
+                                        <input
+                                            type="password"
+                                            id="password-auth"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            required
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors duration-200 shadow-md"
+                                    >
+                                        {isLoginMode ? 'Login' : 'Sign Up'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLoginMode(!isLoginMode)}
+                                        className="w-full text-blue-600 hover:underline mt-2 text-sm"
+                                    >
+                                        {isLoginMode ? 'Need an account? Sign Up' : 'Already have an account? Login'}
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* Main Resume Builder UI (conditionally rendered) */}
+                        {userId && isAuthReady && (
+                            <>
+                                {/* Navigation Buttons */}
+                                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                                    <button
+                                        onClick={() => scrollToSection(personalRef, 'personal')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${activeSection === 'personal' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                    >
+                                        Personal Details
+                                    </button>
+                                    <button
+                                        onClick={() => scrollToSection(educationRef, 'education')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${activeSection === 'education' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                    >
+                                        Education
+                                    </button>
+                                    <button
+                                        onClick={() => scrollToSection(experienceRef, 'experience')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${activeSection === 'experience' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                    >
+                                        Experience
+                                    </button>
+                                    <button
+                                        onClick={() => scrollToSection(projectsRef, 'projects')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${activeSection === 'projects' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                    >
+                                        Projects
+                                    </button>
+                                    <button
+                                        onClick={() => scrollToSection(skillsRef, 'skills')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${activeSection === 'skills' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                    >
+                                        Skills
+                                    </button>
+                                    <button
+                                        onClick={() => scrollToSection(certificationsRef, 'certifications')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${activeSection === 'certifications' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                    >
+                                        Certifications
+                                    </button>
+                                </div>
+
+                                {/* Template Selection */}
+                                <div className="mb-6 p-4 bg-blue-50 rounded-lg shadow-inner">
+                                    <label htmlFor="template-select" className="block text-lg font-medium text-gray-700 mb-2">
+                                        Choose Template:
+                                    </label>
+                                    <select
+                                        id="template-select"
+                                        name="template"
+                                        value={resumeData.template}
+                                        onChange={handleTemplateChange}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+                                    >
+                                        <option value="modern">Modern</option>
+                                        <option value="classic">Classic</option>
+                                        <option value="ats-friendly">ATS Friendly</option>
+                                        <option value="minimalist">Minimalist</option>
+                                        <option value="professional-blue">Professional Blue</option>
+                                        <option value="modern-green">Modern Green</option>
+                                        <option value="elegant-grey">Elegant Grey</option>
+                                        <option value="tech-focused">Tech Focused</option>
+                                        <option value="bold-headings">Bold Headings</option>
+                                        <option value="clean-lines">Clean Lines</option>
+                                        <option value="corporate">Corporate</option>
+                                        <option value="modern-red">Modern Red</option>
+                                        <option value="gradient-accent">Gradient Accent</option>
+                                    </select>
+                                </div>
+
+
+                                {/* Personal Details Section */}
+                                <div ref={personalRef} className="mb-8 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
+                                    <h2 className="text-2xl font-semibold text-gray-700 mb-4">Personal Details</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
+                                            <input
+                                                type="text"
+                                                name="name"
+                                                id="name"
+                                                value={resumeData.personal.name}
+                                                onChange={handlePersonalChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                id="email"
+                                                value={resumeData.personal.email}
+                                                onChange={handlePersonalChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
+                                            <input
+                                                type="tel"
+                                                name="phone"
+                                                id="phone"
+                                                value={resumeData.personal.phone}
+                                                onChange={handlePersonalChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="linkedin" className="block text-sm font-medium text-gray-700">LinkedIn Profile URL</label>
+                                            <input
+                                                type="url"
+                                                name="linkedin"
+                                                id="linkedin"
+                                                value={resumeData.personal.linkedin}
+                                                onChange={handlePersonalChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="github" className="block text-sm font-medium text-gray-700">GitHub Profile URL</label>
+                                            <input
+                                                type="url"
+                                                name="github"
+                                                id="github"
+                                                value={resumeData.personal.github}
+                                                onChange={handlePersonalChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label htmlFor="portfolio" className="block text-sm font-medium text-gray-700">Portfolio/Website URL (Optional)</label>
+                                            <input
+                                                type="url"
+                                                name="portfolio"
+                                                id="portfolio"
+                                                value={resumeData.personal.portfolio}
+                                                onChange={handlePersonalChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label htmlFor="summary" className="block text-sm font-medium text-gray-700">Professional Summary</label>
+                                            <div className="flex items-center space-x-2 mt-1">
+                                                <textarea
+                                                    name="summary"
+                                                    id="summary"
+                                                    value={resumeData.personal.summary}
+                                                    onChange={handlePersonalChange}
+                                                    rows="4"
+                                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                ></textarea>
+                                                <button
+                                                    onClick={generateSummary}
+                                                    disabled={isGeneratingSummary}
+                                                    className={`p-2 rounded-md ${isGeneratingSummary ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white text-sm font-semibold transition-colors duration-200 shadow-md`}
+                                                    title="Generate Summary with AI"
+                                                >
+                                                    {isGeneratingSummary ? (
+                                                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                    ) : (
+                                                        '✨ Generate'
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Education Section */}
+                                <div ref={educationRef} className="mb-8 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
+                                    <h2 className="text-2xl font-semibold text-gray-700 mb-4">Education</h2>
+                                    {resumeData.education.map((edu, index) => (
+                                        <div key={index} className="mb-4 p-4 border border-gray-100 rounded-md bg-gray-50 relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeEducation(index)}
+                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-lg font-bold"
+                                                title="Remove Education"
+                                            >
+                                                &times;
+                                            </button>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label htmlFor={`degree-${index}`} className="block text-sm font-medium text-gray-700">Degree/Field of Study</label>
+                                                    <input
+                                                        type="text"
+                                                        name="degree"
+                                                        id={`degree-${index}`}
+                                                        value={edu.degree}
+                                                        onChange={(e) => handleEducationChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`institution-${index}`} className="block text-sm font-medium text-gray-700">Institution</label>
+                                                    <input
+                                                        type="text"
+                                                        name="institution"
+                                                        id={`institution-${index}`}
+                                                        value={edu.institution}
+                                                        onChange={(e) => handleEducationChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`year-${index}`} className="block text-sm font-medium text-gray-700">Graduation Year</label>
+                                                    <input
+                                                        type="text"
+                                                        name="year"
+                                                        id={`year-${index}`}
+                                                        value={edu.year}
+                                                        onChange={(e) => handleEducationChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label htmlFor={`coursework-${index}`} className="block text-sm font-medium text-gray-700">Relevant Coursework (comma-separated or one per line)</label>
+                                                    <textarea
+                                                        name="coursework"
+                                                        id={`coursework-${index}`}
+                                                        value={edu.coursework}
+                                                        onChange={(e) => handleEducationChange(index, e)}
+                                                        rows="2"
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    ></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addEducation}
+                                        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 shadow-md"
+                                    >
+                                        Add Education
+                                    </button>
+                                </div>
+
+                                {/* Experience Section */}
+                                <div ref={experienceRef} className="mb-8 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
+                                    <h2 className="text-2xl font-semibold text-gray-700 mb-4">Work Experience</h2>
+                                    {resumeData.experience.map((exp, index) => (
+                                        <div key={index} className="mb-4 p-4 border border-gray-100 rounded-md bg-gray-50 relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeExperience(index)}
+                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-lg font-bold"
+                                                title="Remove Experience"
+                                            >
+                                                &times;
+                                            </button>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label htmlFor={`title-${index}`} className="block text-sm font-medium text-gray-700">Job Title</label>
+                                                    <input
+                                                        type="text"
+                                                        name="title"
+                                                        id={`title-${index}`}
+                                                        value={exp.title}
+                                                        onChange={(e) => handleExperienceChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`company-${index}`} className="block text-sm font-medium text-gray-700">Company</label>
+                                                    <input
+                                                        type="text"
+                                                        name="company"
+                                                        id={`company-${index}`}
+                                                        value={exp.company}
+                                                        onChange={(e) => handleExperienceChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label htmlFor={`duration-${index}`} className="block text-sm font-medium text-gray-700">Duration (e.g., Jan 2020 - Dec 2022)</label>
+                                                    <input
+                                                        type="text"
+                                                        name="duration"
+                                                        id={`duration-${index}`}
+                                                        value={exp.duration}
+                                                        onChange={(e) => handleExperienceChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label htmlFor={`description-${index}`} className="block text-sm font-medium text-gray-700">Responsibilities/Achievements</label>
+                                                    <textarea
+                                                        name="description"
+                                                        id={`description-${index}`}
+                                                        value={exp.description}
+                                                        onChange={(e) => handleExperienceChange(index, e)}
+                                                        rows="3"
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    ></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addExperience}
+                                        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 shadow-md"
+                                    >
+                                        Add Experience
+                                    </button>
+                                </div>
+
+                                {/* Projects Section */}
+                                <div ref={projectsRef} className="mb-8 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
+                                    <h2 className="text-2xl font-semibold text-gray-700 mb-4">Projects</h2>
+                                    {resumeData.projects.map((proj, index) => (
+                                        <div key={index} className="mb-4 p-4 border border-gray-100 rounded-md bg-gray-50 relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeProject(index)}
+                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-lg font-bold"
+                                                title="Remove Project"
+                                            >
+                                                &times;
+                                            </button>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label htmlFor={`project-name-${index}`} className="block text-sm font-medium text-gray-700">Project Name</label>
+                                                    <input
+                                                        type="text"
+                                                        name="name"
+                                                        id={`project-name-${index}`}
+                                                        value={proj.name}
+                                                        onChange={(e) => handleProjectChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`project-url-${index}`} className="block text-sm font-medium text-gray-700">Project URL (Optional)</label>
+                                                    <input
+                                                        type="url"
+                                                        name="url"
+                                                        id={`project-url-${index}`}
+                                                        value={proj.url}
+                                                        onChange={(e) => handleProjectChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label htmlFor={`project-description-${index}`} className="block text-sm font-medium text-gray-700">Description</label>
+                                                    <textarea
+                                                        name="description"
+                                                        id={`project-description-${index}`}
+                                                        value={proj.description}
+                                                        onChange={(e) => handleProjectChange(index, e)}
+                                                        rows="3"
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    ></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addProject}
+                                        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 shadow-md"
+                                    >
+                                        Add Project
+                                    </button>
+                                </div>
+
+                                {/* Skills Section */}
+                                <div ref={skillsRef} className="mb-8 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
+                                    <h2 className="text-2xl font-semibold text-gray-700 mb-4">Skills</h2>
+                                    {resumeData.skills.map((skill, index) => (
+                                        <div key={index} className="mb-4 p-4 border border-gray-100 rounded-md bg-gray-50 relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeSkill(index)}
+                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-lg font-bold"
+                                                title="Remove Skill"
+                                            >
+                                                &times;
+                                            </button>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label htmlFor={`skill-name-${index}`} className="block text-sm font-medium text-gray-700">Skill Name</label>
+                                                    <input
+                                                        type="text"
+                                                        name="name"
+                                                        id={`skill-name-${index}`}
+                                                        value={skill.name}
+                                                        onChange={(e) => handleSkillChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`skill-level-${index}`} className="block text-sm font-medium text-gray-700">Level</label>
+                                                    <select
+                                                        name="level"
+                                                        id={`skill-level-${index}`}
+                                                        value={skill.level}
+                                                        onChange={(e) => handleSkillChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    >
+                                                        <option value="">Select Level</option>
+                                                        <option value="Beginner">Beginner</option>
+                                                        <option value="Intermediate">Intermediate</option>
+                                                        <option value="Advanced">Advanced</option>
+                                                        <option value="Expert">Expert</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addSkill}
+                                        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 shadow-md"
+                                    >
+                                        Add Skill
+                                    </button>
+                                </div>
+
+                                {/* Certifications Section */}
+                                <div ref={certificationsRef} className="mb-8 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
+                                    <h2 className="text-2xl font-semibold text-gray-700 mb-4">Certifications</h2>
+                                    {resumeData.certifications.map((cert, index) => (
+                                        <div key={index} className="mb-4 p-4 border border-gray-100 rounded-md bg-gray-50 relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeCertification(index)}
+                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-lg font-bold"
+                                                title="Remove Certification"
+                                            >
+                                                &times;
+                                            </button>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label htmlFor={`cert-name-${index}`} className="block text-sm font-medium text-gray-700">Certification Name</label>
+                                                    <input
+                                                        type="text"
+                                                        name="name"
+                                                        id={`cert-name-${index}`}
+                                                        value={cert.name}
+                                                        onChange={(e) => handleCertificationChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`cert-issuing-body-${index}`} className="block text-sm font-medium text-gray-700">Issuing Body</label>
+                                                    <input
+                                                        type="text"
+                                                        name="issuingBody"
+                                                        id={`cert-issuing-body-${index}`}
+                                                        value={cert.issuingBody}
+                                                        onChange={(e) => handleCertificationChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label htmlFor={`cert-date-${index}`} className="block text-sm font-medium text-gray-700">Date (e.g., Jan 2023)</label>
+                                                    <input
+                                                        type="text"
+                                                        name="date"
+                                                        id={`cert-date-${index}`}
+                                                        value={cert.date}
+                                                        onChange={(e) => handleCertificationChange(index, e)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addCertification}
+                                        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 shadow-md"
+                                    >
+                                        Add Certification
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Right Panel: Resume Preview */}
+                    <div className="lg:w-1/2 bg-gray-200 p-4 rounded-lg shadow-lg flex-grow flex flex-col">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Resume Preview</h2>
+                        {/* User ID display and Logout button */}
+                        {userId && (
+                            <div className="bg-blue-100 p-3 rounded-md mb-4 text-center text-blue-800 font-medium flex justify-between items-center">
+                                <span>Logged in as: <span className="font-bold text-blue-900">{auth.currentUser?.email || userId}</span></span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="ml-4 px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200 text-sm"
+                                >
+                                    <i className="fas fa-sign-out-alt mr-2"></i>Logout
+                                </button>
+                            </div>
+                        )}
+                        {/* Message Box */}
+                        {message.text && (
+                            <div className={`p-3 mb-4 rounded-md text-center font-medium ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                {message.text}
+                            </div>
+                        )}
+                        {/* Assign ref to the resume preview div */}
+                        <div ref={resumePreviewRef} className="flex-grow bg-white rounded-lg overflow-hidden shadow-inner p-4">
+                            <ResumePreview data={resumeData} template={resumeData.template} />
+                        </div>
+                        {userId && ( // Only show save/download if logged in
+                            <div className="mt-4 flex flex-col sm:flex-row justify-center gap-4">
+                                <button
+                                    onClick={saveResume}
+                                    className="bg-blue-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors duration-200 shadow-lg"
+                                >
+                                    <i className="fas fa-save mr-2"></i>Save Resume
+                                </button>
+                                <button
+                                    onClick={downloadResume}
+                                    disabled={isDownloading}
+                                    className={`bg-green-500 text-white py-3 px-6 rounded-lg text-lg font-semibold transition-colors duration-200 shadow-lg ${isDownloading ? 'bg-gray-400 cursor-not-allowed' : 'hover:bg-green-600'}`}
+                                >
+                                    {isDownloading ? (
+                                        <svg className="animate-spin h-5 w-5 text-white inline-block mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    ) : (
+                                        <>
+                                            <i className="fas fa-download mr-2"></i>Download Resume
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the App component into the root div
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
