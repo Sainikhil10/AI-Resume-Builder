@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://sainikhil10.github.io/AI-Resume-Builder/sitemap.xml
